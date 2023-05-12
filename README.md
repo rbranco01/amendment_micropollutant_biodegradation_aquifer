@@ -1,1 +1,9 @@
 # amendment_micropollutant_biodegradation_aquifer
+
+This is repository contains the analysis of micropollutant removal, electron donor consumption, microbial activity and growth, and microbial communities of an experiment studying micropollutant removal 1D simulated nitrate reducing aquifers. The dataset describes the temporal changes of micropollutant, electron donor and acceptor, bacterial and archaeal 16S rRNA genes and *tfdA* gene concentrations, and microbial communities as different electron donor and oxygen amendments are performed.
+
+Chemical input data were obtained with liquid chromatograph-mass spectrometer, liquid chromatography-organic carbon detection, ion chromatograph and oxygen sensor spots. The micropollutant removal efficiencies and micropollutant, electron donor and electron acceptor concentrations tables were imported into R (in input_data/). The unprocessed/untreated data used to create the R input data has also been included in the repository (in raw_data/).
+
+Two types of molecular biology data were obtained. 1) Molecular biology input data were obtained with qPC and gene concentrations tables were imported into R (in input_data/). 2) Molecular biology input data were created by sequencing 16S rRNA gene amplicons using primers 515F and 926R on Illumina Miseq (300 bp PE); Fastq sequence files were analysed using QIIME2 (scripts can be found in the scripts/QIIME2/ directory) and the feature table, taxonomic assignments, phylogeny and metadata were imported into R (in input_data/).
+
+<a rel="license" href="http://creativecommons.org/licenses/by/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by/4.0/88x31.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International License</a>.

@@ -1,0 +1,1746 @@
+---
+title: "Manuscript_4_Data_Analysis_directory_RBRA"
+author: "Rita H. R. Branco"
+date: "4/24/2023"
+output: html_document
+---
+
+This is an R Markdown document contains an analysis of micropollutant removal, microbial activity and gene presence of an experiment of Rita H.R. Branco.
+
+## Install packages
+
+```{r import data, message=F, echo=T, eval=T, warning=F, include=T, cache=F}
+setwd("C:/Users/Rita/Documents/R/Manuscript_4") #set working directory
+
+knitr::opts_chunk$set(echo = TRUE)
+
+options(scipen = 999) # tell R to avoid all scientific notation
+
+# Package list
+packages <- c("rmarkdown", "readxl", "reshape2", "dplyr", "scales", "ggh4x", "RColorBrewer", "cowplot", "ggbreak", "ggnewscale", "ggplot2")
+
+# Install packages not yet installed
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+  install.packages(packages[!installed_packages])
+}
+
+# Load packages
+library(rmarkdown)
+library(readxl) 
+library(reshape2)
+library(dplyr)
+library(scales)
+library(ggh4x)
+library(RColorBrewer)
+library(cowplot)
+library(ggbreak)
+library(ggnewscale)
+library(ggplot2)
+```
+
+# 1. Loading, exploring and treating the data
+
+## 1.1. Oxygen data
+
+### 1.1.1. Define the class of each column
+```{r 1.1.1. class of each column, message=F, echo=T, eval=T, warning=F, include=T, cache=F}
+all_data_NA <- read_excel("C:/Users/Rita/Documents/R/Manuscript_4/input_data/Manuscript_4_oxygen.xlsx", col_types = c("text", "text", "text", "text", "numeric", "text", "numeric"))
+```
+
+### 1.1.2. Removing NA data
+```{r 1.1.2. NA removal, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+all_data <- na.omit(all_data_NA)
+```
+
+### 1.1.3. Reordering data (reordering facets of facet plot using relevel function)
+```{r 1.1.3. reorder, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+data_ordered <- all_data
+data_ordered$Column <- factor(data_ordered$Column, levels = c("Nitrate_red_Microaer", "Nitrate_red", "Aerob", "Aerob_Microaer"))
+data_ordered$DOC <- factor(data_ordered$DOC, levels = c("none", "H", "H_D", "D", "D_A", "A", "NH4"))
+data_ordered$Height <- factor(data_ordered$Height, levels = c("0", "2.5", "6.25", "10", "13.75", "17.5", "25", "32.5", "47.5"))
+```
+
+### 1.1.4. Data per column
+```{r 1.1.4. data per column, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+#Nitrate_red_Microaer
+nitrate_red_microaer_O2 <- data_ordered %>% filter(Column == "Nitrate_red_Microaer")
+
+#Nitrate_red 
+nitrate_red_O2 <- data_ordered %>% filter(Column == "Nitrate_red")
+
+#Aerob 
+aerob_O2 <- data_ordered %>% filter(Column == "Aerob")
+
+#Aerob_Microaer
+aerob_microaerob_O2 <- data_ordered %>% filter(Column == "Aerob_Microaer")
+```
+
+## 1.2. Remaining chemical and qPCR data
+
+### 1.2.1. Define the class of each column
+```{r 1.2.1. class of each column, message=F, echo=T, eval=T, warning=F, include=T, cache=F}
+all_data_chem_short <- read_excel("C:/Users/Rita/Documents/R/Manuscript_4/input_data/Manuscript_4_data.xlsx", col_types = c("text", "text", "text", "text", "numeric", "text", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric"))
+```
+
+### 1.2.2. Creating a compound column and respective concentration
+```{r 1.2.2. compound concentration, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+all_data_chem_NA = melt(all_data_chem_short, id.vars = c("Column", "DOM", "Day", "Group","Height", "Redox_condition_2_50", "Aeration"), 
+                 variable.name = "compound", value.name = "concentration")
+```
+
+### 1.2.3. Removing NA data
+```{r 1.2.3. NA removal, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+all_data_chem <- na.omit(all_data_chem_NA)
+```
+
+### 1.2.4. Reordering data (reordering facets of facet plot using relevel function)
+```{r 1.2.4. reorder, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+data_chem_ordered <- all_data_chem
+data_chem_ordered$Column <- factor(data_chem_ordered$Column, levels = c("Nitrate_red_Microaer", "Nitrate_red", "Aerob", "Aerob_Microaer"))
+data_chem_ordered$DOM <- factor(data_chem_ordered$DOM, levels = c("none", "H", "H_D", "D", "D_A", "A", "NH4"))
+data_chem_ordered$Height <- factor(data_chem_ordered$Height, levels = c("0", "2.5", "17.5", "32.5", "47.5", "50"))
+data_chem_ordered$compound <- factor(data_chem_ordered$compound, levels = c("24_D", "MCPP", "CLZ", "CLZ_DP", "CLZ_MDP", "DCB", "BAM", "MET_ESA", "MET_OA", "BTZ", "ANP", "CBZ", "GAB", "ACK", "1H_BTR", "HUM", "BIOPOL", "ACET","LMWA", "LMWN", "HOC", "CDOC", "DOC", "NH4", "NO3", "NO2", "16S_bac", "tfdA_87_88", "tfdA_95_96", "tfdA_total", "nirK", "nirS", "amoA"))
+```
+
+### 1.2.5. Keeping only micropollutants removed
+```{r 1.2.5. keep MP removed, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+#micropollutants removed
+data_micropol <- data_chem_ordered %>% filter(compound == "24_D" | compound == "MCPP" | compound == "ANP")
+
+#2,4-D
+data_24_D <- data_chem_ordered %>% filter(compound == "24_D")
+nitrate_red_microaer_24_D <- data_24_D %>% filter(Column == "Nitrate_red_Microaer")
+nitrate_red_24_D <- data_24_D %>% filter(Column == "Nitrate_red")
+aerob_24_D <- all_data_chem_NA %>% filter(compound == "24_D" & Column == "Aerob" & !Day == -34 & !Day == 14 & !Day == 42 & !Day == 70)
+aerob_microaerob_24_D <- all_data_chem_NA %>% filter(compound == "24_D" & Column == "Aerob_Microaer" & !Day == -34)
+
+#MCPP
+data_MCPP <- data_chem_ordered %>% filter(compound == "MCPP")
+nitrate_red_microaer_MCPP <- data_MCPP %>% filter(Column == "Nitrate_red_Microaer")
+nitrate_red_MCPP <- data_MCPP %>% filter(Column == "Nitrate_red")
+aerob_MCPP <- all_data_chem_NA %>% filter(compound == "MCPP" & Column == "Aerob" & !Day == -34 & !Day == 14 & !Day == 42 & !Day == 70)
+aerob_microaerob_MCPP <- data_MCPP %>% filter(Column == "Aerob_Microaer")
+
+#ANP
+data_ANP <- data_chem_ordered %>% filter(compound == "ANP")
+nitrate_red_microaer_ANP <- data_ANP %>% filter(Column == "Nitrate_red_Microaer")
+nitrate_red_ANP <- data_ANP %>% filter(Column == "Nitrate_red")
+aerob_ANP <- data_ANP %>% filter(Column == "Aerob")
+aerob_microaerob_ANP <- data_ANP %>% filter(Column == "Aerob_Microaer")
+```
+
+### 1.2.6. Keeping only nitrate
+```{r 1.2.6. keep NO3 data, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+#NO3
+data_NO3 <- data_chem_ordered %>% filter(compound == "NO3")
+nitrate_red_microaer_NO3 <- data_NO3 %>% filter(Column == "Nitrate_red_Microaer")
+nitrate_red_NO3 <- data_NO3 %>% filter(Column == "Nitrate_red")
+aerob_NO3 <- data_NO3 %>% filter(Column == "Aerob")
+aerob_microaerob_NO3 <- data_NO3 %>% filter(Column == "Aerob_Microaer")
+```
+
+### 1.2.7. Keeping only e- donor
+```{r 1.2.7. keep e- donor, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+#DOC added
+data_donor <- data_chem_ordered %>% filter((compound == "HUM" | compound == "BIOPOL"| compound ==  "NH4" | compound == "LMWA" | compound == "LMWN" | compound == "HOC") & !Height == "0")
+nitrate_red_microaer_donor <- data_donor %>% filter(Column == "Nitrate_red_Microaer")
+nitrate_red_donor <- data_donor %>% filter(Column == "Nitrate_red")
+aerob_donor <- data_donor %>% filter(Column == "Aerob")
+aerob_microaerob_donor <- data_donor %>% filter(Column == "Aerob_Microaer")
+```
+
+## 1.3. Removal efficiency
+
+### 1.3.1. Define the class of each column
+```{r 1.3.1. class of each column, message=F, echo=T, eval=T, warning=F, include=T, cache=F}
+heatmap_short <- read_excel("C:/Users/Rita/Documents/R/Manuscript_4/input_data/Manuscript_4_removal_efficiency.xlsx", col_types = c("text", "text", "text", "text", "numeric", "text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric"))
+```
+
+### 1.3.2. Creating a compound column and respective removal efficiency column
+```{r 1.3.2. compound removal efficiency, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+heatmap_long = melt(heatmap_short, id.vars = c("Column", "DOC", "Redox_condition_2_50", "Aeration", "Day", "Height"), 
+                 variable.name = "Compound", value.name = "Removal_Efficiency")
+```
+
+### 1.3.3. Reordering data
+```{r 1.3.3. data reorder, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+heatmap_ordered <- heatmap_long
+heatmap_ordered$Column <- factor(heatmap_ordered$Column, levels = c("Nitrate_red_Microaer", "Nitrate_red", "Aerob", "Aerob_Microaer"))
+heatmap_ordered$DOC <- factor(heatmap_ordered$DOC, levels = c("none", "H", "H_D", "D", "D_A", "A", "NH4"))
+heatmap_ordered$Height<- factor(heatmap_ordered$Height, levels = c("0", "2.5", "17.5", "32.5", "47.5", "50"))
+heatmap_ordered$Compound <- factor(heatmap_ordered$Compound, levels = c("24_D", "MCPP", "CLZ", "CLZ_DP", "CLZ_MDP", "DCB", "BAM", "MET_ESA", "MET_OA", "BTZ", "ANP", "CBZ", "GAB", "ACK", "1H_BTR"))
+```
+
+### 1.3.4. Reoordering y axis and creat new variables for removal efficiency
+```{r 1.3.4. y axis reorder, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+round0 <- function(x) ifelse(abs(x) < 1, format(round(x, 2), nsmall = 1), ifelse(abs(x) < 10, format(round(x, 1), nsmall = 1), round(x, 0)))
+
+heatmap_final <- heatmap_ordered %>%
+      mutate(Compound = factor(Compound,levels = rev(sort(unique(Compound))))) %>%
+      mutate(RemovalEfficiency = cut(Removal_Efficiency,breaks=c(-91, -90, -60, -30, 30, 60, 90, max(Removal_Efficiency, na.rm=T)),
+                             labels = c("<=-90", "<=-60", "<=-30", ">-30 & <30", ">=30", ">=60", ">=90"))) %>%
+      mutate(RemovalEfficiency = factor(as.character(RemovalEfficiency), levels = rev(levels(RemovalEfficiency)))) %>%
+      mutate(RemovalEf = round0(Removal_Efficiency))
+```
+
+### 1.1.5. Separating MP biodegraded
+```{r 1.3.5. separate MP biodegraded, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+heatmap_MP_biodegraded <- heatmap_final %>%
+  na.omit() %>%
+  filter(Compound == "24_D" | Compound == "MCPP") %>%
+  filter(Height == "47.5")
+
+heatmap_AM <- heatmap_MP_biodegraded %>%
+  filter(Column == "Aerob_Microaer")
+```
+
+# 2. Results
+
+## 2.1. Nitrate_red_Microaer
+
+### 2.1.1. Oxygen
+```{r Nitrate_red_Microaer oxygen, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+breaks_1 <- c("2.5", "17.5", "32.5", "47.5")
+valuesfill_1 <- c("white", "white", "white", "white")
+valuesshape_1 <- c(21, 22, 24, 4)
+valuesline_1 <- c(1, 1, 1, 1)
+
+redox_cond <- c("Nitrate", "Microaer", "Nitrate", "Microaer", "Nitrate", "Microaer")
+valuesfill_2 <- c("#FFFFE5", "#D9F0A3", "#FFFFE5", "#D9F0A3", "#FFFFE5", "#D9F0A3")
+valuesalpha_3 <- c(0.6,0.6,0.6,0.6,0.6,0.6)
+aerate_1 <- data.frame(x1=c(0,26,103.5,117,135,143), x2=c(26,103.5,117,135,143,154), y1=c(-Inf,-Inf,-Inf,-Inf,-Inf,-Inf), y2=c(Inf,Inf,Inf,Inf,Inf,Inf))
+
+plot_nitrate_red_microaer_O2 <- ggplot() +
+ geom_rect(data=aerate_1, 
+           mapping=aes(xmin=x1, 
+                       xmax=x2, 
+                       ymin = y1, 
+                       ymax = y2,
+                       fill= redox_cond,
+                       alpha = redox_cond)) +
+  scale_fill_manual (breaks = redox_cond, 
+                     values = valuesfill_2) +
+  scale_alpha_manual(breaks = redox_cond, 
+                     values = valuesalpha_3) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_microaer_O2, 
+            mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_microaer_O2,
+             mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_1,
+                     values = valuesshape_1) +
+  scale_fill_manual (breaks = breaks_1, 
+                     values = valuesfill_1) +
+  scale_linetype_manual(breaks = breaks_1, 
+                        values = valuesline_1) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-1, 2001), 
+                     breaks = seq(0, 2000, 250), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_nitrate_red_microaer_O2
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NMA.pdf", width = 6, height = 4)
+```
+
+### 2.1.2. 2,4-D
+```{r Nitrate_red_Microaer 2,4-D, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+breaks_2 <- c("0", "2.5", "17.5", "32.5", "47.5", "50")
+valuesfill_7 <- c("black", "white", "white", "white", "white", "white")
+valuesshape_4 <- c(32, 21, 22, 24, 4, 23)
+valuesline_4 <- c(1, 1, 1, 1, 1, 1)
+
+plot_nitrate_red_microaer_24_D <- ggplot() +
+ geom_rect(data=aerate_1, 
+           mapping=aes(xmin=x1, 
+                       xmax=x2, 
+                       ymin = y1, 
+                       ymax = y2,
+                       fill= redox_cond,
+                       alpha = redox_cond)) +
+  scale_fill_manual (breaks = redox_cond, 
+                     values = valuesfill_2) +
+  scale_alpha_manual(breaks = redox_cond, 
+                     values = valuesalpha_3) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_microaer_24_D, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_microaer_24_D,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_hline(yintercept = 1, size = 0.4)
+
+plot_nitrate_red_microaer_24_D
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NMB.pdf", width = 6, height = 4)
+```
+
+### 2.1.3. MCPP
+```{r Nitrate_red_Microaer MCPP, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+
+plot_nitrate_red_microaer_MCPP <- ggplot() +
+ geom_rect(data=aerate_1, 
+           mapping=aes(xmin=x1, 
+                       xmax=x2, 
+                       ymin = y1, 
+                       ymax = y2,
+                       fill= redox_cond,
+                       alpha = redox_cond)) +
+  scale_fill_manual (breaks = redox_cond, 
+                     values = valuesfill_2) +
+  scale_alpha_manual(breaks = redox_cond, 
+                     values = valuesalpha_3) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_microaer_MCPP, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_microaer_MCPP,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_hline(yintercept = 1, size = 0.4)
+
+plot_nitrate_red_microaer_MCPP
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NMC.pdf", width = 6, height = 4)
+```
+
+### 2.1.4. Nitrate
+```{r Nitrate_red_Microaer Nitrate, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+valuesshape_5 <- c(32, 21, 22, 24, 4, 23)
+
+plot_nitrate_red_microaer_NO3 <- ggplot() +
+ geom_rect(data=aerate_1, 
+           mapping=aes(xmin=x1, 
+                       xmax=x2, 
+                       ymin = y1, 
+                       ymax = y2,
+                       fill= redox_cond,
+                       alpha = redox_cond)) +
+  scale_fill_manual (breaks = redox_cond, 
+                     values = valuesfill_2) +
+  scale_alpha_manual(breaks = redox_cond, 
+                     values = valuesalpha_3) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_microaer_NO3, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_microaer_NO3,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_5) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.405), 
+                     breaks = seq(0, 1.4, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_nitrate_red_microaer_NO3
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NMD.pdf", width = 6, height = 4)
+```
+
+### 2.1.5. e- donor
+```{r Nitrate_red_Microaer e- donor, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=8, fig.height=4}
+breaks_6 <- c("HUM", "BIOPOL", "LMWA", "LMWN", "HOC", "NH4")
+valuesfill_8 <- c("#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#F7F7F7", "#D1E5F0")
+
+plot_nitrate_red_microaer_donor <- ggplot() +
+  geom_bar(data = nitrate_red_microaer_donor, mapping = aes(x = as.factor(Height),
+                                          y = concentration,
+                                          col = compound,
+                                          fill = compound),
+           stat = "identity",
+           colour = "black",
+           width = 0.8,
+           linewidth = 0.3) +
+  scale_fill_manual (breaks = breaks_6, 
+                     values = valuesfill_8) +
+  scale_y_continuous(limits = c(-0.13, 4.13), 
+                     breaks = seq(0, 4, 0.5), 
+                     expand = c(0,0)) +
+  facet_nested(~ Day + Redox_condition_2_50) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.text.x	= element_text(angle = 60, hjust = 1),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(0, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.25),
+        panel.grid.major = element_line(colour = "grey87",
+                                        linewidth = 0.15))
+
+plot_nitrate_red_microaer_donor
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NME.pdf", width = 8, height = 4)
+```
+
+## 2.2. Nitrate_red
+
+### 2.2.1. Oxygen
+```{r Nitrate_red oxygen, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+DOC <- c("H", "H_D", "D", "D_A", "A", "NH4")
+valuesfill_3 <- c("#B2182B", "#D6604D", "#F4A582", "#FDDBC7", "#F7F7F7", "#D1E5F0")
+valuesalpha_1 <- c(0.3,0.3,0.3,0.3,0.3,0.3)
+DOC_1 <- data.frame(x3=c(0,15,43,71,99,127), x4=c(15,43,71,99,127,154), y3=c(-Inf,-Inf,-Inf,-Inf,-Inf,-Inf), y4=c(Inf,Inf,Inf,Inf,Inf,Inf))
+
+plot_nitrate_red_O2 <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_O2, 
+            mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_O2,
+             mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_1,
+                     values = valuesshape_1) +
+  scale_fill_manual (breaks = breaks_1, 
+                     values = valuesfill_1) +
+  scale_linetype_manual(breaks = breaks_1, 
+                        values = valuesline_1) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-1, 2001), 
+                     breaks = seq(0, 2000, 250), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_nitrate_red_O2
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NA.pdf", width = 6, height = 4)
+```
+
+### 2.2.2. 2,4-D
+```{r Nitrate_red 2,4-D, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+
+plot_nitrate_red_24_D <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_24_D, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_24_D,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_hline(yintercept = 1, size = 0.4)
+
+plot_nitrate_red_24_D
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NB.pdf", width = 6, height = 4)
+```
+
+### 2.2.3. MCPP
+```{r Nitrate_red MCPP, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+
+plot_nitrate_red_MCPP <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_MCPP, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_MCPP,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_hline(yintercept = 1, size = 0.4)
+
+plot_nitrate_red_MCPP
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NC.pdf", width = 6, height = 4)
+```
+
+### 2.2.4. Nitrate
+```{r Nitrate_red Nitrate, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+
+plot_nitrate_red_NO3 <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = nitrate_red_NO3, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = nitrate_red_NO3,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_5) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.405), 
+                     breaks = seq(0, 1.4, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_nitrate_red_NO3
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_ND.pdf", width = 6, height = 4)
+```
+
+### 2.2.5. e- donor
+```{r Nitrate_red e- donor, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=8, fig.height=4}
+plot_nitrate_red_donor <- ggplot() +
+  geom_bar(data = nitrate_red_donor, mapping = aes(x = as.factor(Height),
+                                          y = concentration,
+                                          col = compound,
+                                          fill = compound),
+           stat = "identity",
+           colour = "black",
+           width = 0.7,
+           linewidth = 0.3) +
+  scale_fill_manual (breaks = breaks_6, 
+                     values = valuesfill_8) +
+  scale_y_continuous(limits = c(-1, 61), 
+                     breaks = seq(0, 60, 10), 
+                     expand = c(0,0)) +
+  facet_nested(~ DOM + Day) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.text.x	= element_text(angle = 60, hjust = 1),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(0, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.25),
+        panel.grid.major = element_line(colour = "grey87",
+                                        linewidth = 0.15))
+
+plot_nitrate_red_donor
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_NE.pdf", width = 8, height = 4)
+```
+
+## 2.3. Aerob
+
+### 2.3.1. Oxygen
+```{r Aerob oxygen, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+breaks_4 <- c("0", "2.5", "6.25", "10", "13.75", "17.5", "25", "32.5", "47.5")
+valuesfill_4 <- c("black", "white", "white", "white", "white", "white", "white", "white", "white")
+valuesshape_2 <- c(21, 21, 21, 21, 21, 22, 22, 24, 4)
+valuesline_2 <- c(1, 1, 2, 4, 3, 1, 2, 1, 1)
+
+plot_aerob_O2 <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = aerob_O2, 
+            mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_O2,
+             mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_4,
+                     values = valuesshape_2) +
+  scale_fill_manual (breaks = breaks_4, 
+                     values = valuesfill_4) +
+  scale_linetype_manual(breaks = breaks_4, 
+                        values = valuesline_2) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-2, 9002), 
+                     breaks = seq(0, 9000, 1500), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_aerob_O2
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AA.pdf", width = 6, height = 4)
+```
+
+### 2.3.2. 2,4-D
+```{r Aerob 2,4-D, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+
+plot_aerob_24_D <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = aerob_24_D, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_24_D,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_segment(aes(x=0,xend=64,y=1,yend=1), size = 0.4)
+
+plot_aerob_24_D
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AB.pdf", width = 6, height = 4)
+```
+
+### 2.3.3. MCPP
+```{r Aerob MCPP, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+
+plot_aerob_MCPP <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = aerob_MCPP, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_MCPP,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_segment(aes(x=0,xend=71,y=1,yend=1), size = 0.4)
+
+plot_aerob_MCPP
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AC.pdf", width = 6, height = 4)
+```
+
+### 2.3.4. Nitrate
+```{r Aerob Nitrate, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+
+plot_aerob_NO3 <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  geom_line(data = aerob_NO3, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_NO3,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_5) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.405), 
+                     breaks = seq(0, 1.4, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_aerob_NO3
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AD.pdf", width = 6, height = 4)
+```
+
+### 2.3.5. e- donor
+```{r Aerob e- donor, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=8, fig.height=4}
+plot_aerob_donor <- ggplot() +
+  geom_bar(data = aerob_donor, mapping = aes(x = as.factor(Height),
+                                          y = concentration,
+                                          col = compound,
+                                          fill = compound),
+           stat = "identity",
+           colour = "black",
+           width = 0.7,
+           linewidth = 0.3) +
+  scale_fill_manual (breaks = breaks_6, 
+                     values = valuesfill_8) +
+  scale_y_continuous(limits = c(-1, 61), 
+                     breaks = seq(0, 60, 10), 
+                     expand = c(0,0)) +
+  facet_nested(~ DOM + Day) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.text.x	= element_text(angle = 60, hjust = 1),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(0, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.25),
+        panel.grid.major = element_line(colour = "grey87",
+                                        linewidth = 0.15))
+
+plot_aerob_donor
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AE.pdf", width = 8, height = 4)
+```
+
+## 2.4. Aerob_Microaerob
+
+### 2.4.1. Oxygen
+```{r Aerob_Microaerob oxygen, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+breaks_5 <- c("0", "2.5", "17.5", "32.5", "47.5")
+valuesfill_5 <- c("black", "white", "white", "white", "white")
+valuesshape_3 <- c(21, 21, 22, 24, 4)
+valuesline_3 <- c(1, 1, 1, 1, 1)
+
+aeration_on <- c("On","On","On","On","On","On","On","On","On","On","On")
+valuesfill_6 <- c("black","black","black","black","black","black","black","black","black","black","black")
+valuesalpha_2 <- c(0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1)
+  
+aerate_on_off_1 <- data.frame(x5=c(1,15,30,43,57,71,85,99,113,127,142), x6=c(3.27,16.25,31.25,45.26,59.27,73.27,87.21,101.26,114.93,129.15,144.25), y5=c(-Inf,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf), y6=c(Inf,Inf,Inf,Inf,Inf,Inf,Inf,Inf,Inf,Inf,Inf))
+
+aerate_on_off_2 <- c(1,3.27,15,16.25,30,31.25,43,45.26,57,59.27,71,73.27,85,87.21,99,101.26,113,114.93,127,129.15,142,144.25)
+
+plot_aerob_microaerob_O2 <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  new_scale("alpha") +
+  geom_vline(xintercept = aerate_on_off_2, size = 0.25, linetype = 3) +
+  geom_rect(data=aerate_on_off_1, 
+           mapping=aes(xmin=x5, 
+                       xmax=x6, 
+                       ymin = y5, 
+                       ymax = y6,
+                       fill = aeration_on,
+                       alpha = aeration_on)) +
+  scale_fill_manual (breaks = aeration_on, 
+                     values = valuesfill_6) +
+  scale_alpha_manual(breaks = aeration_on, 
+                     values = valuesalpha_2) +
+  new_scale("fill") +
+  geom_line(data = aerob_microaerob_O2, 
+            mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_microaerob_O2,
+             mapping = aes(x = Day,
+                          y = O2_ug_L,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_5,
+                     values = valuesshape_3) +
+  scale_fill_manual (breaks = breaks_5, 
+                     values = valuesfill_5) +
+  scale_linetype_manual(breaks = breaks_5, 
+                        values = valuesline_3) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-2, 9002), 
+                     breaks = seq(0, 9000, 1500), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_aerob_microaerob_O2
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AMA.pdf", width = 6, height = 4)
+```
+
+### 2.4.2. 2,4-D
+```{r Aerob_Microaerob 2,4-D, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+plot_aerob_microaerob_24_D <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  new_scale("alpha") +
+  geom_vline(xintercept = aerate_on_off_2, size = 0.25, linetype = 3) +
+  geom_rect(data=aerate_on_off_1, 
+           mapping=aes(xmin=x5, 
+                       xmax=x6, 
+                       ymin = y5, 
+                       ymax = y6,
+                       fill = aeration_on,
+                       alpha = aeration_on)) +
+  scale_fill_manual (breaks = aeration_on, 
+                     values = valuesfill_6) +
+  scale_alpha_manual(breaks = aeration_on, 
+                     values = valuesalpha_2) +
+  new_scale("fill") +
+  geom_line(data = aerob_microaerob_24_D, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_microaerob_24_D,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_segment(aes(x=0,xend=148,y=1,yend=1), size = 0.4)
+
+plot_aerob_microaerob_24_D
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AMB.pdf", width = 6, height = 4)
+```
+
+### 2.4.3. MCPP
+```{r Aerob_Microaerob MCPP, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+plot_aerob_microaerob_MCPP <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  new_scale("alpha") +
+  geom_vline(xintercept = aerate_on_off_2, size = 0.25, linetype = 3) +
+  geom_rect(data=aerate_on_off_1, 
+           mapping=aes(xmin=x5, 
+                       xmax=x6, 
+                       ymin = y5, 
+                       ymax = y6,
+                       fill = aeration_on,
+                       alpha = aeration_on)) +
+  scale_fill_manual (breaks = aeration_on, 
+                     values = valuesfill_6) +
+  scale_alpha_manual(breaks = aeration_on, 
+                     values = valuesalpha_2) +
+  new_scale("fill") +
+  geom_line(data = aerob_microaerob_MCPP, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_microaerob_MCPP,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.605), 
+                     breaks = seq(0, 1.6, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_hline(yintercept = 1, size = 0.4)
+
+plot_aerob_microaerob_MCPP
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AMC.pdf", width = 6, height = 4)
+```
+
+### 2.4.3. Antipyrine
+```{r Aerob_Microaerob Antipyrine, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+plot_aerob_microaerob_ANP <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  new_scale("alpha") +
+  geom_vline(xintercept = aerate_on_off_2, size = 0.25, linetype = 3) +
+  geom_rect(data=aerate_on_off_1, 
+           mapping=aes(xmin=x5, 
+                       xmax=x6, 
+                       ymin = y5, 
+                       ymax = y6,
+                       fill = aeration_on,
+                       alpha = aeration_on)) +
+  scale_fill_manual (breaks = aeration_on, 
+                     values = valuesfill_6) +
+  scale_alpha_manual(breaks = aeration_on, 
+                     values = valuesalpha_2) +
+  new_scale("fill") +
+  geom_line(data = aerob_microaerob_ANP, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_microaerob_ANP,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 4.05), 
+                     breaks = seq(0, 4, 0.5), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank()) +
+  geom_hline(yintercept = 1, size = 0.4)
+
+plot_aerob_microaerob_ANP
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AMX.pdf", width = 6, height = 4)
+```
+
+### 2.4.4. Nitrate
+```{r Aerob_Microaerob Nitrate, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=4}
+plot_aerob_microaerob_NO3 <- ggplot() +
+ geom_rect(data=DOC_1, 
+           mapping=aes(xmin=x3, 
+                       xmax=x4, 
+                       ymin = y3, 
+                       ymax = y4,
+                       fill = DOC,
+                       alpha = DOC)) +
+  scale_fill_manual (breaks = DOC, 
+                     values = valuesfill_3) +
+  scale_alpha_manual(breaks = DOC, 
+                     values = valuesalpha_1) +
+  new_scale("fill") +
+  new_scale("alpha") +
+  geom_vline(xintercept = aerate_on_off_2, size = 0.25, linetype = 3) +
+  geom_rect(data=aerate_on_off_1, 
+           mapping=aes(xmin=x5, 
+                       xmax=x6, 
+                       ymin = y5, 
+                       ymax = y6,
+                       fill = aeration_on,
+                       alpha = aeration_on)) +
+  scale_fill_manual (breaks = aeration_on, 
+                     values = valuesfill_6) +
+  scale_alpha_manual(breaks = aeration_on, 
+                     values = valuesalpha_2) +
+  new_scale("fill") +
+  geom_line(data = aerob_microaerob_NO3, 
+            mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          linetype = Height),
+            colour = "black", 
+            linewidth = 0.4) +
+  geom_point(data = aerob_microaerob_NO3,
+             mapping = aes(x = Day,
+                          y = concentration,
+                          colour = Height,
+                          fill = Height,
+                          shape = Height),
+             colour = "black") +
+  scale_shape_manual(breaks = breaks_2,
+                     values = valuesshape_4) +
+  scale_fill_manual (breaks = breaks_2, 
+                     values = valuesfill_7) +
+  scale_linetype_manual(breaks = breaks_2, 
+                        values = valuesline_4) +
+  scale_x_continuous(limits = c(-0.1, 154),
+                     breaks = seq(0, 154, 15),
+                     expand = c(0,0)) +
+  scale_y_continuous(limits = c(-0.05, 1.405), 
+                     breaks = seq(0, 1.4, 0.2), 
+                     expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey65",
+                                        linewidth = 0.15),
+        panel.grid.major.x = element_blank())
+
+plot_aerob_microaerob_NO3
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AMD.pdf", width = 6, height = 4)
+```
+
+### 2.4.5. e- donor
+```{r Aerob_Microaerob e- donor, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=8, fig.height=4}
+plot_aerob_microaerob_donor <- ggplot() +
+  geom_bar(data = aerob_microaerob_donor, mapping = aes(x = as.factor(Height),
+                                          y = concentration,
+                                          col = compound,
+                                          fill = compound),
+           stat = "identity",
+           colour = "black",
+           width = 0.7,
+           linewidth = 0.3) +
+  scale_fill_manual (breaks = breaks_6, 
+                     values = valuesfill_8) +
+  scale_y_continuous(limits = c(-1, 61), 
+                     breaks = seq(0, 60, 10), 
+                     expand = c(0,0)) +
+  facet_nested(~ DOM + Day + Aeration) +
+  theme_classic() +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.text.x	= element_text(angle = 60, hjust = 1),
+        axis.ticks = element_line(linewidth = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.width = unit(12, "pt"),
+        legend.key.height = unit(10, "pt"),
+        legend.position ="bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(0, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    linewidth = 0.25),
+        panel.grid.major = element_line(colour = "grey87",
+                                        linewidth = 0.15))
+
+plot_aerob_microaerob_donor
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AME.pdf", width = 8, height = 4)
+```
+
+### 2.4.5. Removal efficiencies
+```{r Aerob_Microaerob removal efficiencies, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=8, fig.height=2}
+heatmap <- ggplot(data = heatmap_MP_biodegraded, aes(x = as.factor(Day), y = Compound, fill = RemovalEfficiency)) +
+  geom_tile(colour = "white", size = 0.2) +
+  facet_wrap2(vars(Column), ncol = 1, scales = "free_x") +
+  scale_y_discrete(expand = c(0,0)) +
+  scale_x_discrete(expand = c(0,0)) +
+  scale_fill_manual(values = c("#D6604D", "#F4A582", "#FDDBC7", "#F7F7F7", "#D1E5F0", "#92C5DE", "#4393C3"), limits = c("<=-90", "<=-60", "<=-30", ">-30 & <30", ">=30", ">=60", ">=90")) +
+  geom_text(aes(label = RemovalEf), size = 2.5) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks.x = element_line(size = 0.35),
+        axis.ticks.y = element_blank(),
+        axis.text.x	= element_text(angle = 45, hjust = 1),
+        axis.text.y	= element_text(vjust = 1, hjust = 1),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.position = "bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        legend.key.size = unit(10, "pt"),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    size = 0.5))
+heatmap
+
+heatmap_final <- ggplot(data = heatmap_AM, aes(x = as.factor(Day), y = Compound, fill = RemovalEfficiency)) +
+  geom_tile(colour = "white", size = 0.2) +
+  scale_y_discrete(expand = c(0,0)) +
+  scale_x_discrete(expand = c(0,0)) +
+  scale_fill_manual(values = c("#D6604D", "#F4A582", "#FDDBC7", "#F7F7F7", "#D1E5F0", "#92C5DE", "#4393C3"), limits = c("<=-90", "<=-60", "<=-30", ">-30 & <30", ">=30", ">=60", ">=90")) +
+  geom_text(aes(label = RemovalEf), size = 2.5) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks.x = element_line(size = 0.35),
+        axis.ticks.y = element_blank(),
+        axis.text.x	= element_text(angle = 45, hjust = 1),
+        axis.text.y	= element_text(vjust = 1, hjust = 1),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.position = "bottom",
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        legend.key.size = unit(10, "pt"),
+        panel.spacing = unit(5, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    size = 0.5))
+heatmap_final
+
+ggsave("C:/Users/Rita/Documents/R/Manuscript_4/figures/Figure4_AMF.pdf", width = 8, height = 2)
+```
+
+# 3. Color pallet
+```{r color pallet, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=6, fig.height=3}
+display.brewer.pal(n = 11, name = "RdBu")
+brewer.pal(n = 11, name = "RdBu")
+
+display.brewer.pal(n = 9, name = "YlGn")
+brewer.pal(n = 9, name = "YlGn")
+
+  # annotation_custom(grid::linesGrob(y = c(0, 0), gp = grid::gpar(lwd = 1))) +
+  # annotation_custom(grid::linesGrob(x = c(0, 0), gp = grid::gpar(lwd = 1))) +
+  # annotation_custom(grid::linesGrob(x = c(1, 1), gp = grid::gpar(lwd = 1))) +
+  # annotation_custom(grid::linesGrob(y = c(1, 1), gp = grid::gpar(lwd = 1))) +
+```
