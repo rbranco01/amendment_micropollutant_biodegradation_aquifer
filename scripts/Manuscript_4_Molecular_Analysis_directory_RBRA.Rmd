@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 options(scipen = 999)
 
 # packages required
-packages <- c("qiime2R", "phyloseq", "tidyverse", "magrittr", "devtools", "qiime2R", "here", "breakaway", "DivNet", "openxlsx", "ape", "vegan", "ggtext", "cowplot", "RColorBrewer", "microbiome", "lme4", "lmerTest","decontam", "remotes", "ampvis2", "speedyseq", "ggh4x", "kableExtra", "phia", "MASS", "ggord", "glue", "lubridate", "data.table")
+packages <- c("qiime2R", "phyloseq", "tidyverse", "magrittr", "devtools", "qiime2R", "here", "scales", "breakaway", "DivNet", "openxlsx", "ape", "vegan", "ggtext", "cowplot", "RColorBrewer", "microbiome", "lme4", "lmerTest","decontam", "remotes", "ampvis2", "speedyseq", "ggh4x", "kableExtra", "phia", "MASS", "ggord", "glue", "lubridate", "data.table", "ggplot2")
 
 # install packages not yet installed
 installed_packages <- packages %in% rownames(installed.packages())
@@ -103,6 +103,8 @@ library(phia)
 library(kableExtra)
 library(MASS)
 library(data.table)
+library(scales)
+library(ggplot2)
 ```
 
 ### Data import
@@ -152,7 +154,7 @@ sample_data(psdata_RBRA)$e_donor <- factor(sample_data(psdata_RBRA)$e_donor, lev
 
 sample_data(psdata_RBRA)$height <- factor(sample_data(psdata_RBRA)$height, levels = c("2.5", "50"))
 
-sample_data(psdata_RBRA)$day_DOC <- factor(sample_data(psdata_RBRA)$day_DOC, levels = c("14_H", "42_H_D",	"70_D",	"98_D_A",	"126_A",	"154_NH4",	"14_Nitrate_red",	"70_Microaerob", "126_Microaerob",	"154_Microaerob"))
+sample_data(psdata_RBRA)$day_DOC <- factor(sample_data(psdata_RBRA)$day_DOC, levels = c("H_14", "H_D_42",	"D_70",	"D_A_98",	"A_126",	"NH4_154",	"Nitrate_red_14",	"Microaerob_70", "Microaerob_126",	"Microaerob_154"))
 
 sample_data(psdata_RBRA)$column_height <- factor(sample_data(psdata_RBRA)$column_height, levels = c("Nitrate_red_Microaer_50",	"Nitrate_red_2.5", "Aerob_2.5", "Aerob_Microaer_2.5", "Aerob_Microaer_50"))
 
@@ -234,96 +236,37 @@ physeq3 <- prune_taxa(taxa_sums(physeq3)>0, physeq3)
 #### 5) Remove OTUs with origin in MOCK community
 ```{r remove MOCK OTUs, message=F, echo=T, eval=T, warning=F, include=T, cache=F}
 mock <- subset_samples(physeq3, mock_community == "yes")
-sample <- subset_samples(physeq3, mock_community == "no")
 
 rel_not_rar <- transform_sample_counts(physeq3, fun = function(x) x/sum(x)) ## whole data set
 rel_mock <- transform_sample_counts(mock, fun = function(x) x/sum(x)) ## mock community
-rel_sample <- transform_sample_counts(sample, fun = function(x) x/sum(x)) ## samples
 
-# MOCK ASV IN SAMPLE
-filter_0.005_m <- phyloseq::genefilter_sample(rel_mock, filterfun_sample(function(x) x > 0.005))
-
-top_mock_in_sample <- prune_taxa(filter_0.005_m, rel_sample)
-
-top_mock_in_sample_1 = 
-  data.frame(top_mock_in_sample@otu_table) %>% 
-  as_tibble(rownames = "ASV") %>% 
-  pivot_longer(names_to = "samples", cols = -ASV) %>% 
-  mutate(type="sample")
-
-top_mock_in_mock_1 = 
-  data.frame(rel_mock@otu_table) %>% 
-  as_tibble(rownames = "ASV") %>% 
-  filter(ASV %in% taxa_names(top_mock_in_sample)) %>% 
-  pivot_longer(names_to = "samples", cols = -ASV) %>% 
-  mutate(type="mock") 
-
-top_mock_long = bind_rows(top_mock_in_sample_1, top_mock_in_mock_1)
-mock_taxa_names = data.frame(top_mock_in_sample@tax_table) %>% as_tibble(rownames="ASV")
-  
-top_mock_plot <- top_mock_long %>% 
-  group_by(ASV, type) %>% 
-  summarise(mean = mean(value)) %>% 
-  inner_join(., mock_taxa_names, by = "ASV") %>% 
-  pivot_wider(names_from = "type", values_from = "mean", values_fill = 0) %>%
-  unite(ASV, Species, col = "ASV_Species", sep = "_", remove = FALSE) %>%
-  ggplot(aes(x=mock, y=sample)) +
-  geom_point(aes(color = ASV_Species))
-
-top_mock_plot
-
-# SAMPLE ASV IN MOCK
-filter_0.15_s <- phyloseq::genefilter_sample(rel_sample, filterfun_sample(function(x) x > 0.15))
-
-top_sample_in_mock <- prune_taxa(filter_0.15_s, rel_mock)
-
-top_sample_in_mock_1 = 
-  data.frame(top_sample_in_mock@otu_table) %>% 
-  as_tibble(rownames = "ASV") %>% 
-  pivot_longer(names_to = "samples", cols = -ASV) %>% 
-  mutate(type="mock")
-
-top_sample_in_sample_1 = 
-  data.frame(rel_sample@otu_table) %>% 
-  as_tibble(rownames = "ASV") %>% 
-  filter(ASV %in% taxa_names(top_sample_in_mock)) %>% 
-  pivot_longer(names_to = "samples", cols = -ASV) %>% 
-  mutate(type="sample") 
-
-top_sample_long = bind_rows(top_sample_in_mock_1, top_sample_in_sample_1)
-sample_taxa_names = data.frame(top_sample_in_mock@tax_table) %>% as_tibble(rownames="ASV")
-  
-top_sample_plot <- top_sample_long %>% 
-  group_by(ASV, type) %>% 
-  summarise(mean = mean(value)) %>% 
-  inner_join(., sample_taxa_names, by = "ASV") %>% 
-  pivot_wider(names_from = "type", values_from = "mean", values_fill = 0) %>% 
-  ggplot(aes(x=mock, y=sample)) +
-  geom_point(aes(color = Species))
-
-top_sample_plot
-
-#RITA'S INITIAL PROCESSING, but now with relative abundances
+# taxa in MOCK samples with abundance > 0.01
 filter_0.01 <- phyloseq::genefilter_sample(rel_mock, filterfun_sample(function(x) x > 0.01))
 mock_taxa_0.01 <- prune_taxa(filter_0.01, rel_mock)
-not_rar_0.01 <- prune_taxa(filter_0.01,rel_not_rar) #11 OTU, all these taxa correspond to taxa that should be in the mock community (except ebc4facffb9f550d9895b0e2057b26b0, Genus__Burkholderia-Caballeronia-Paraburkholderia) and their relative abundance in the samples (0.000-0.003) is much lower than in the mock community samples (>0.010)
+not_rar_0.01 <- prune_taxa(filter_0.01,rel_not_rar) #11 OTU, all these taxa correspond to taxa that should be in the mock community, their relative abundance in the samples (0.000-0.003) is much lower than in the mock community samples (>0.010)
 
+# taxa in MOCK samples with abundance > 0.005
 filter_0.005 <- phyloseq::genefilter_sample(rel_mock, filterfun_sample(function(x) x > 0.005))
 mock_taxa_0.005 <- prune_taxa(filter_0.005, rel_mock) 
 not_rar_0.005 <- prune_taxa(filter_0.005, rel_not_rar) #15 OTU
 
+# taxas in MOCK samples with 0.005 < abundance > 0.01
 filter_0.005_0.01 <- phyloseq::genefilter_sample(mock_taxa_0.005, filterfun_sample(function(x) x < 0.01))
 mock_taxa_0.005_0.01 <- prune_taxa(filter_0.005_0.01, mock_taxa_0.005) 
 not_rar_0.005_0.01 <- prune_taxa(filter_0.005_0.01,not_rar_0.005) #4 OTU
-### 3eff8f2d520a354e57817f9210dc426d (Genus__Lysinibacillus, mock taxa) mock: 0.0042-0.0055; sample: 0.0000
-### 599b022f8ad5fc64b1423b0931dd052e (Bacillus_coagulans, mock taxa) mock: 0.0044-0.0100; sample: 0.0000
-### 500d294e65ac031e205edb2ea3b9ddf6 (Family_Comamonadaceae, not mock taxa) mock: 0.0043-0.0073; sample: up to 0.21
-### eee4b43e99303cb0092fe501da59d116 (Genus__Clostridium_sensu_stricto_1, not mock taxa) mock: 0.0077-0.0087; sample: up to 0.42
+### 3eff8f2d520a354e57817f9210dc426d (Genus__Lysinibacillus, mock taxa) mock: 0.0042-0.0055; sample: 0.0000 -> from MOCK sample
+### 599b022f8ad5fc64b1423b0931dd052e (Bacillus_coagulans, mock taxa) mock: 0.0044-0.0100; sample: 0.0000 -> from MOCK sample
+### 500d294e65ac031e205edb2ea3b9ddf6 (Family_Comamonadaceae, not mock taxa) mock: 0.0043-0.0073; sample: up to 0.21 -> experimental sample contaminated MOCK sample
+### eee4b43e99303cb0092fe501da59d116 (Genus__Clostridium_sensu_stricto_1, not mock taxa) mock: 0.0077-0.0087; sample: up to 0.42 -> experimental sample contaminated MOCK sample
 
+# filter out of experiment samples the taxa from the MOCK samples
 not_mock_taxa_1 <- prune_taxa(!filter_0.01, physeq3)
 other_mock_taxa = c("3eff8f2d520a354e57817f9210dc426d",  "599b022f8ad5fc64b1423b0931dd052e")
 not_mock_taxa_2 <- setdiff(taxa_names(not_mock_taxa_1), other_mock_taxa)
-psdata_RBRA <- prune_taxa(not_mock_taxa_2, not_mock_taxa_1)
+physeq4 <- prune_taxa(not_mock_taxa_2, not_mock_taxa_1)
+
+# remove MOCK samples
+psdata_RBRA <- subset_samples(physeq4, mock_community == "no")
 ```
 
 #### 6) Remove contaminants with DECONTAM
@@ -380,6 +323,10 @@ psdata_RBRA <-
     taxa_sums(
       subset_samples(psdata_decontam, negative_control == "no")) > 0, 
       subset_samples(psdata_decontam, negative_control == "no"))
+
+psdata_RBRA <- subset_samples(psdata_RBRA, !column_height == "Aerob_Microaer_50")
+
+psdata_RBRA <- prune_taxa(taxa_sums(psdata_RBRA)>0, psdata_RBRA)
 ```
 
 ### Rarefaction curves
@@ -388,13 +335,13 @@ psdata_RBRA <-
 
 ```{r filter on abundance, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
 # relative abundance data
-psdata_RBRA_rel <- transform_sample_counts(psdata_RBRA, fun = function(x) x/sum(x)) # 2106 taxa
+psdata_RBRA_rel <- transform_sample_counts(psdata_RBRA, fun = function(x) x/sum(x)) # 1657 taxa
 
-# total reads left = 1998811
+# total reads left = 1532725
 sum(sample_sums(psdata_RBRA))
 
 # continue downstream analysis with abundance filter that retains ASVs with at least 0.01% of total read abundance -> keeps above 99% abundance when removing rare data
-psdata_RBRA_0.01pct <- prune_taxa(taxa_sums(psdata_RBRA_rel) > 0.0001, psdata_RBRA) # 1664 taxa (99.93% abundance)
+psdata_RBRA_0.01pct <- prune_taxa(taxa_sums(psdata_RBRA_rel) > 0.0001, psdata_RBRA) # 1334 taxa (99.93% abundance)
 100*(sum(sample_sums(psdata_RBRA_0.01pct))/sum(sample_sums(psdata_RBRA)))
 
 psdata_RBRA <- psdata_RBRA_0.01pct
@@ -430,14 +377,17 @@ data <- amp_load(otutable = otus_tax,
                  metadata = met)
 
 # minimum coverage of reads per sample
-min_cover <- min(sample_sums(psdata_RBRA)) #32198
+min_cover <- min(sample_sums(psdata_RBRA)) #26444
+max_cover <- max(sample_sums(psdata_RBRA))
+median_cover <- mean(sample_sums(psdata_RBRA))
+sum_cover <- sum(sample_sums(psdata_RBRA))
 
 # rarefaction curves plot
-breakscolumn <- c("Nitrate_red_Microaer", "Nitrate_red", "Aerob", "Aerob_Microaer")
+breakscolumn <- c("Nitrate_red_Microaer_50", "Nitrate_red_2.5", "Aerob_2.5", "Aerob_Microaer_2.5")
 valuesfill <- c("#CA0020", "#F4A582", "#92C5DE", "#0571B0")
 
 amp_rarecurve(data = data, 
-              color = "column") +
+              color = "column_height") +
   scale_color_manual (breaks = breakscolumn,
                       values = valuesfill) +
   theme_classic() +
@@ -455,26 +405,26 @@ amp_rarecurve(data = data,
                                     fill = NA, 
                                     size = 0.5)) +
   coord_cartesian(xlim = c(0,50000), ylim = c(0,500)) +
-  geom_vline(xintercept = 32198, size = 0.25)
+  geom_vline(xintercept = 26444, size = 0.25)
 
 ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_S1.pdf", width = 4.5, height = 3)
 ```
 
-**Figure S1**. Rarefaction curves. Minimum coverage was 32198 reads per sample; a depth at which full diversity is captured. Hence, no samples were dropped in later stages.<br>
+**Figure S1**. Rarefaction curves. Minimum coverage was 26444 reads per sample; a depth at which full diversity is captured. Hence, no samples were dropped in later stages.<br>
 
 ### Alpha diversity
 
-```{r alpha diversity, message=F, echo=T, eval=T, warning=T, include=T, cache=T, fig.width=6, fig.height=6}
-# data rarefied to 32198 r/s
+```{r alpha diversity, message=F, echo=T, eval=T, warning=T, include=T, cache=T}
+# data rarefied to 26445 r/s
 set.seed(711)
 
-ps_32198 <- rarefy_even_depth(psdata_RBRA, 32198, rngseed = 711)
+ps_26444 <- rarefy_even_depth(psdata_RBRA, 26444, rngseed = 711)
 
 # calculate richness
-metadata <- data.frame(sample_data(ps_32198))
-alpha <- estimate_richness(ps_32198, measures = c("Chao1", "Shannon"))
+metadata <- data.frame(sample_data(ps_26444))
+alpha <- estimate_richness(ps_26444, measures = c("Chao1", "Shannon"))
 
-alpha$sampleid <- sample_names(ps_32198)
+alpha$sampleid <- sample_names(ps_26444)
 alpha_data <- 
   left_join(metadata, alpha, by = "sampleid") %>% 
   rename_all(tolower) 
@@ -485,7 +435,7 @@ alpha_summary = alpha_data %>% group_by(combined) %>% summarise(mean_chao = mean
 chao1 <- alpha_data %>% 
   ggplot(aes(x=day_doc, y=chao1)) +
   stat_summary(fun = mean, geom = "bar", mapping = aes(fill = column_height)) +
-  scale_fill_manual(values = c("#B2182B", "#F4A582", "#92C5DE", "#2166AC", "#053061")) +
+  scale_fill_manual(values = c("#CA0020", "#F4A582", "#92C5DE", "#0571B0")) +
   facet_grid(cols = vars(column_height), scales = "free_x", space = "free_x") +
   labs(y = "ASV richness (Chao1)", x= "Day_DOC") +
   scale_y_continuous(limits = c(-5, 505), 
@@ -514,12 +464,13 @@ chao1 <- alpha_data %>%
 shannon <- alpha_data %>% 
   ggplot(aes(x=day_doc, y=shannon)) +
   stat_summary(fun = mean, geom = "bar", mapping = aes(fill = column_height)) +
-  scale_fill_manual(values = c("#B2182B", "#F4A582", "#92C5DE", "#2166AC", "#053061")) +
+  scale_fill_manual(values = c("#CA0020", "#F4A582", "#92C5DE", "#0571B0")) +
   facet_grid(cols = vars(column_height), scales = "free_x", space = "free_x") +
   labs(y = "ASV diversity (Shannon)", x= "Day_DOC") +
   scale_y_continuous(limits = c(-0.05, 5.05), 
                      breaks = seq(0, 5, 1), 
-                     expand = c(0,0)) +
+                     expand = c(0,0),
+                     labels = label_number(accuracy = 0.01)) +
   theme_classic() +
   theme(axis.text = element_text(size = 7, colour = "black"),
         axis.ticks.x = element_line(size = 0.35),
@@ -544,40 +495,39 @@ alpha_plot = plot_grid(chao1 + theme(legend.position = "none"),
                        shannon + theme(legend.position = "none"),
                        align = "vh",
                        labels = c("A", "B"),
-                       nrow = 2)
-
-alpha_plot
-
-ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_alpha.pdf", width = 6, height = 6)
+                       ncol = 2)
 ```
-
-**Figure Alpha**. Microbial community diversity across the different columns in time. Alpha diversity expressed as A) estimated ASV richness (Chao1); B) estimated ASV diversity (Shannon).<br>
 
 ### Beta diversity
 
 Due to no replicates no PERMANOVA was performed.
 
-```{r total beta diversity, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=8, fig.height=8}
+#### In columns with electron donor amendment
+
+```{r beta diversity electron donor amendment, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
 # relative abundance data
 psdata_RBRA_rel <- transform_sample_counts(psdata_RBRA, fun = function(x) x/sum(x))
 
+# remove column no electon donor amendment
+psdata_RBRA_rel_donor <- subset_samples(psdata_RBRA_rel, !e_donor == "none")
+
 # ordination
-PCoA_BC <- ordinate(psdata_RBRA_rel, method = "PCoA", distance = "bray")
-PCoA_Jac <- ordinate(psdata_RBRA_rel, method = "PCoA", distance = "jaccard")
-PCoA_uu <- ordinate(psdata_RBRA_rel, method = "PCoA", distance = "uunifrac")
-PCoA_wu <- ordinate(psdata_RBRA_rel, method = "PCoA", distance = "wunifrac")
+PCoA_BC_donor <- ordinate(psdata_RBRA_rel_donor, method = "PCoA", distance = "bray")
+PCoA_Jac_donor <- ordinate(psdata_RBRA_rel_donor, method = "PCoA", distance = "jaccard")
+PCoA_uu_donor <- ordinate(psdata_RBRA_rel_donor, method = "PCoA", distance = "uunifrac")
+PCoA_wu_donor <- ordinate(psdata_RBRA_rel_donor, method = "PCoA", distance = "wunifrac")
 
 # Plot PCoA Bray-Curtis dissimilarity distances
-plot_PCoA_BC <- plot_ordination(physeq = psdata_RBRA_rel, 
-                                 ordination = PCoA_BC, 
+plot_PCoA_BC_donor <- plot_ordination(physeq = psdata_RBRA_rel_donor, 
+                                 ordination = PCoA_BC_donor, 
                                  type = "samples", 
                                  axes = c(1,2), 
                                  shape = "day_doc",
                                  color = "column_height") +
   scale_color_manual(name = "Column_height",
-                     values = c("#B2182B", "#F4A582", "#92C5DE", "#2166AC", "#053061")) +
+                     values = c("#F4A582", "#92C5DE", "#0571B0")) +
   scale_shape_manual(name = "Day_DOC",
-                       values = c(0,6,1,2,5,4,7,10,9,14)) +
+                       values = c(0,6,1,2,5,4)) +
   geom_point(size = 2) +
   ggtitle("Bray-Curtis dissimilarity") +
   theme_classic() +
@@ -596,16 +546,16 @@ plot_PCoA_BC <- plot_ordination(physeq = psdata_RBRA_rel,
                                     size = 0.5))
 
 # plot PCoA Jaccard distances
-plot_PCoA_Jac <- plot_ordination(physeq = psdata_RBRA_rel, 
-                                 ordination = PCoA_Jac, 
+plot_PCoA_Jac_donor <- plot_ordination(physeq = psdata_RBRA_rel_donor, 
+                                 ordination = PCoA_Jac_donor, 
                                  type = "samples", 
                                  axes = c(1,2), 
                                  shape = "day_doc",
                                  color = "column_height") +
   scale_color_manual(name = "Column_height",
-                     values = c("#B2182B", "#F4A582", "#92C5DE", "#2166AC", "#053061")) +
+                     values = c("#F4A582", "#92C5DE", "#0571B0")) +
   scale_shape_manual(name = "Day_DOC",
-                       values = c(0,6,1,2,5,4,7,10,9,14)) +
+                       values = c(0,6,1,2,5,4)) +
   geom_point(size = 2) +
   ggtitle("Jaccard distance") +
   theme_classic() +
@@ -624,16 +574,16 @@ plot_PCoA_Jac <- plot_ordination(physeq = psdata_RBRA_rel,
                                     size = 0.5))
 
 # plot PCoA unweighted UniFrac distances
-plot_PCoA_uu <- plot_ordination(physeq = psdata_RBRA_rel, 
-                                 ordination = PCoA_uu, 
+plot_PCoA_uu_donor <- plot_ordination(physeq = psdata_RBRA_rel_donor, 
+                                 ordination = PCoA_uu_donor, 
                                  type = "samples", 
                                  axes = c(1,2), 
                                  shape = "day_doc",
                                  color = "column_height") +
   scale_color_manual(name = "Column_height",
-                     values = c("#B2182B", "#F4A582", "#92C5DE", "#2166AC", "#053061")) +
+                     values = c("#F4A582", "#92C5DE", "#0571B0")) +
   scale_shape_manual(name = "Day_DOC",
-                       values = c(0,6,1,2,5,4,7,10,9,14)) +
+                       values = c(0,6,1,2,5,4)) +
   geom_point(size = 2) +
   ggtitle("unweighted UniFrac") +
   theme_classic() +
@@ -652,16 +602,16 @@ plot_PCoA_uu <- plot_ordination(physeq = psdata_RBRA_rel,
                                     size = 0.5))
 
 # plot PCoA weighted UniFrac distances
-plot_PCoA_wu <- plot_ordination(physeq = psdata_RBRA_rel, 
-                                 ordination = PCoA_wu, 
+plot_PCoA_wu_donor <- plot_ordination(physeq = psdata_RBRA_rel_donor, 
+                                 ordination = PCoA_wu_donor, 
                                  type = "samples", 
                                  axes = c(1,2), 
                                  shape = "day_doc",
                                  color = "column_height") +
   scale_color_manual(name = "Column_height",
-                     values = c("#B2182B", "#F4A582", "#92C5DE", "#2166AC", "#053061")) +
+                     values = c("#F4A582", "#92C5DE", "#0571B0")) +
   scale_shape_manual(name = "Day_DOC",
-                       values = c(0,6,1,2,5,4,7,10,9,14)) +
+                       values = c(0,6,1,2,5,4)) +
   geom_point(size = 2) +
   ggtitle("weighted UniFrac") +
   theme_classic() +
@@ -678,34 +628,135 @@ plot_PCoA_wu <- plot_ordination(physeq = psdata_RBRA_rel,
         panel.border = element_rect(colour = "black", 
                                     fill = NA, 
                                     size = 0.5))
-
-# combined plot
-PCoA = plot_grid(plot_PCoA_BC + theme(legend.position = "none"),
-                 plot_PCoA_Jac + theme(legend.position = "none"),
-                 plot_PCoA_uu + theme(legend.position = "none"),
-                 plot_PCoA_wu + theme(legend.position = "none"),
-                   labels  = c("A", "B", "C", "D"),
-                   ncol = 2,
-                   nrow = 2,
-                   align = "hv")
-
-legend_beta <- get_legend(plot_PCoA_Jac)
-
-beta_plot <- plot_grid(PCoA, legend_beta, ncol=2, rel_widths = c(5, 1))
-
-beta_plot
-
-ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_beta.pdf", width = 8, height = 8)
 ```
 
-**Figure Beta**. Microbial community diversity across the different columns in time. Principal coordinates analysis (PCoA) ordination plots of community composition based on A) Bray-Curtis; B) Jaccard; C) unweighted UniFrac distances; and D) weighted UniFrac, respectively.<br>
+#### In column without electron donor amendment
+
+```{r beta diversity no electron donor amendment, message=F, echo=T, eval=T, warning=T, include=T, cache=F}
+# remove column electon donor amendment
+psdata_RBRA_rel_microaerob <- subset_samples(psdata_RBRA_rel, e_donor == "none")
+
+# ordination
+PCoA_BC_microaerob <- ordinate(psdata_RBRA_rel_microaerob, method = "PCoA", distance = "bray")
+PCoA_Jac_microaerob <- ordinate(psdata_RBRA_rel_microaerob, method = "PCoA", distance = "jaccard")
+PCoA_uu_microaerob <- ordinate(psdata_RBRA_rel_microaerob, method = "PCoA", distance = "uunifrac")
+PCoA_wu_microaerob <- ordinate(psdata_RBRA_rel_microaerob, method = "PCoA", distance = "wunifrac")
+
+# Plot PCoA Bray-Curtis dissimilarity distances
+plot_PCoA_BC_microaerob <- plot_ordination(physeq = psdata_RBRA_rel_microaerob, 
+                                 ordination = PCoA_BC_microaerob, 
+                                 type = "samples", 
+                                 axes = c(1,2), 
+                                 shape = "day_doc",
+                                 color = "column_height") +
+  scale_color_manual(name = "Column_height",
+                     values = c("#CA0020")) +
+  scale_shape_manual(name = "Day_DOC",
+                       values = c(0,1,5,4)) +
+  geom_point(size = 2) +
+  ggtitle("Bray-Curtis dissimilarity") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 10),
+        axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(size = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.size = unit(10, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    size = 0.5))
+# plot PCoA Jaccard distances
+plot_PCoA_Jac_microaerob <- plot_ordination(physeq = psdata_RBRA_rel_microaerob, 
+                                 ordination = PCoA_Jac_microaerob, 
+                                 type = "samples", 
+                                 axes = c(1,2), 
+                                 shape = "day_doc",
+                                 color = "column_height") +
+  scale_color_manual(name = "Column_height",
+                     values = c("#CA0020")) +
+  scale_shape_manual(name = "Day_DOC",
+                       values = c(0,1,5,4)) +
+  geom_point(size = 2) +
+  ggtitle("Jaccard distance") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 10),
+        axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(size = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.size = unit(10, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    size = 0.5))
+
+# plot PCoA unweighted UniFrac distances
+plot_PCoA_uu_microaerob <- plot_ordination(physeq = psdata_RBRA_rel_microaerob, 
+                                 ordination = PCoA_uu_microaerob, 
+                                 type = "samples", 
+                                 axes = c(1,2), 
+                                 shape = "day_doc",
+                                 color = "column_height") +
+  scale_color_manual(name = "Column_height",
+                     values = c("#CA0020")) +
+  scale_shape_manual(name = "Day_DOC",
+                       values = c(0,1,5,4)) +
+  geom_point(size = 2) +
+  ggtitle("unweighted UniFrac") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 10),
+        axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(size = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.size = unit(10, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    size = 0.5))
+
+# plot PCoA weighted UniFrac distances
+plot_PCoA_wu_microaerob <- plot_ordination(physeq = psdata_RBRA_rel_microaerob, 
+                                 ordination = PCoA_wu_microaerob, 
+                                 type = "samples", 
+                                 axes = c(1,2), 
+                                 shape = "day_doc",
+                                 color = "column_height") +
+  scale_color_manual(name = "Column_height",
+                     values = c("#CA0020")) +
+  scale_shape_manual(name = "Day_DOC",
+                       values = c(0,1,5,4)) +
+  geom_point(size = 2) +
+  ggtitle("weighted UniFrac") +
+  theme_classic() +
+  theme(plot.title = element_text(size = 10),
+        axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks = element_line(size = 0.25),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text	= element_text(size = 7),
+        legend.title = element_text(size = 8),
+        legend.key.size = unit(10, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    size = 0.5))
+```
 
 #### Distances between consecutive electron donors
 
-```{r ditances electron donors, message=F, echo=T, eval=T, warning=F, include=T, cache=F, fig.width=8, fig.height=8}
-# remove column no electon donor amendment
-psdata_RBRA_rel_donor <- subset_samples(psdata_RBRA_rel, !e_donor == "none")
-
+```{r distances electron donors, message=F, echo=T, eval=T, warning=F, include=T, cache=F}
 # subtract sample metadata from phyloseq object
 metadata2 <- data.frame(sample_data(psdata_RBRA_rel_donor), stringsAsFactors = T)
 
@@ -745,7 +796,7 @@ dist_wu %>%
   mutate(metric = "wu")
 
 # define consecutive sampling moments
-comp_donor = c("14_H_to_42_H_D", "42_H_D_to_70_D", "70_D_to_98_D_A", "98_D_A_to_126_A", "126_A_to_154_NH4")
+comp_donor = c("H_14_to_H_D_42", "H_D_42_to_D_70", "D_70_to_D_A_98", "D_A_98_to_A_126", "A_126_to_NH4_154")
 
 # reshape distance data and combine with metadata
 all_dists =
@@ -768,14 +819,13 @@ comp_inoc_bc <- all_dists %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("Bray Curtis distances") +
-  scale_color_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_y_continuous(limits = c(0, 1), 
-                     breaks = seq(0, 1, 0.25)) +
+  scale_color_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_y_continuous(limits = c(0, 0.75), 
+                     breaks = seq(0, 0.75, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -800,14 +850,13 @@ comp_inoc_jac <- all_dists %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("Jaccard distances") +
-  scale_color_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_y_continuous(limits = c(0, 1), 
-                     breaks = seq(0, 1, 0.25)) +
+  scale_color_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_y_continuous(limits = c(0, 0.75), 
+                     breaks = seq(0, 0.75, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -832,14 +881,13 @@ comp_inoc_uu <- all_dists %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("unweighted UniFrac distances") +
-  scale_color_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_y_continuous(limits = c(0, 1), 
-                     breaks = seq(0, 1, 0.25)) +
+  scale_color_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_y_continuous(limits = c(0, 0.75), 
+                     breaks = seq(0, 0.75, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -864,14 +912,13 @@ comp_inoc_wu <- all_dists %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("weighted UniFrac distances") +
-  scale_color_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#2166AC", "#053061")) +
-  scale_y_continuous(limits = c(0, 1), 
-                     breaks = seq(0, 1, 0.25)) +
+  scale_color_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_fill_manual(values = c("#F4A582", "#92C5DE", "#0571B0")) +
+  scale_y_continuous(limits = c(0, 0.75), 
+                     breaks = seq(0, 0.75, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -889,34 +936,11 @@ comp_inoc_wu <- all_dists %>%
         legend.position = "right") +
   labs(y = "Distance",
        x = NULL)
-
-# plot Jall distances between e-donor
-comp = plot_grid(comp_inoc_bc + theme(legend.position = "none"),
-                 comp_inoc_jac + theme(legend.position = "none"),
-                 comp_inoc_uu + theme(legend.position = "none"),
-                 comp_inoc_wu + theme(legend.position = "none"),
-                   labels  = c("A", "B", "C", "D"),
-                   ncol = 2,
-                   nrow = 2,
-                   align = "hv")
-
-legend_comp <- get_legend(comp_inoc_jac)
-
-comp_plot <- plot_grid(comp, legend_comp, ncol=2, rel_widths = c(5, 1))
-
-comp_plot
-
-ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_distance_e_donor.pdf", width = 8, height = 8)
 ```
-
-**Figure distance e donor**. A) Bray Curtis, B) Jaccard, C) unweighted UniFrac and D) weighted UniFrac distances between microbial communities after each electron donor amendment per column with electron donor amendment.<br>
 
 #### Distances between consecutive microaeration periods
 
-```{r ditances microaeration periods, message=F, echo=T, eval=T, warning=F, include=T, cache=F, fig.width=8, fig.height=8}
-# remove column no electon donor amendment
-psdata_RBRA_rel_microaerob <- subset_samples(psdata_RBRA_rel, e_donor == "none")
-
+```{r distances microaeration periods, message=F, echo=T, eval=T, warning=F, include=T, cache=F}
 # subtract sample metadata from phyloseq object
 metadata3 <- data.frame(sample_data(psdata_RBRA_rel_microaerob), stringsAsFactors = T)
 
@@ -956,7 +980,7 @@ dist_wu2 %>%
   mutate(metric = "wu")
 
 # define consecutive sampling moments
-comp_microaerob = c("14_Nitrate_red_to_70_Microaerob", "70_Microaerob_to_126_Microaerob", "126_Microaerob_to_154_Microaerob")
+comp_microaerob = c("Nitrate_red_14_to_Microaerob_70", "Microaerob_70_to_Microaerob_126", "Microaerob_126_to_Microaerob_154")
 
 # reshape distance data and combine with metadata
 all_dists2 =
@@ -979,14 +1003,13 @@ comp_inoc_bc2 <- all_dists2 %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("Bray Curtis distances") +
-  scale_color_manual(values = c("#B2182B")) +
-  scale_fill_manual(values = c("#B2182B")) +
+  scale_color_manual(values = c("#CA0020")) +
+  scale_fill_manual(values = c("#CA0020")) +
   scale_y_continuous(limits = c(0, 1), 
                      breaks = seq(0, 1, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -1011,14 +1034,13 @@ comp_inoc_jac2 <- all_dists2 %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("Jaccard distances") +
-  scale_color_manual(values = c("#B2182B")) +
-  scale_fill_manual(values = c("#B2182B")) +
+  scale_color_manual(values = c("#CA0020")) +
+  scale_fill_manual(values = c("#CA0020")) +
   scale_y_continuous(limits = c(0, 1), 
                      breaks = seq(0, 1, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -1043,14 +1065,13 @@ comp_inoc_uu2 <- all_dists2 %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("unweighted UniFrac distances") +
-  scale_color_manual(values = c("#B2182B")) +
-  scale_fill_manual(values = c("#B2182B")) +
+  scale_color_manual(values = c("#CA0020")) +
+  scale_fill_manual(values = c("#CA0020")) +
   scale_y_continuous(limits = c(0, 1), 
                      breaks = seq(0, 1, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -1075,14 +1096,13 @@ comp_inoc_wu2 <- all_dists2 %>%
   ggplot(aes(x = comp, y = distance, color = column_height_a)) +
   geom_point(size = 2, alpha = 0.6, position = position_dodge(0.05)) +
   ggtitle("weighted UniFrac distances") +
-  scale_color_manual(values = c("#B2182B")) +
-  scale_fill_manual(values = c("#B2182B")) +
+  scale_color_manual(values = c("#CA0020")) +
+  scale_fill_manual(values = c("#CA0020")) +
   scale_y_continuous(limits = c(0, 1), 
                      breaks = seq(0, 1, 0.25)) +
   theme_classic() +
   theme(plot.title = element_text(size = 10),
         axis.text = element_text(size = 7, colour = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
         axis.ticks = element_line(size = 0.25),
         axis.title = element_text(size = 9),
         axis.title.x = element_text(margin = margin(t = 7)),
@@ -1100,27 +1120,78 @@ comp_inoc_wu2 <- all_dists2 %>%
         legend.position = "right") +
   labs(y = "Distance",
        x = NULL)
+```
 
-# plot Jall distances between e-donor
-comp2 = plot_grid(comp_inoc_bc2 + theme(legend.position = "none"),
-                 comp_inoc_jac2 + theme(legend.position = "none"),
-                 comp_inoc_uu2 + theme(legend.position = "none"),
-                 comp_inoc_wu2 + theme(legend.position = "none"),
-                   labels  = c("A", "B", "C", "D"),
-                   ncol = 2,
-                   nrow = 2,
-                   align = "hv")
+### Figure 3 - Alpha + Beta diversity
+
+```{r Figure 3, message=F, echo=T, eval=T, warning=F, include=T, cache=F, fig.width=11, fig.height=7}
+legend_beta_donor <- get_legend(plot_PCoA_Jac_donor)
+
+legend_beta_microaerob <- get_legend(plot_PCoA_Jac_microaerob)
+
+legend_comp <- get_legend(comp_inoc_jac)
 
 legend_comp2 <- get_legend(comp_inoc_jac2)
 
-comp_plot2 <- plot_grid(comp2, legend_comp2, ncol=2, rel_widths = c(5, 1))
+PCoA <- plot_grid(plot_PCoA_wu_microaerob + theme(legend.position = "none"),
+                 legend_beta_microaerob,
+                 plot_PCoA_Jac_donor + theme(legend.position = "none"),
+                 plot_PCoA_uu_donor + theme(legend.position = "none"),
+                 plot_PCoA_wu_donor + theme(legend.position = "none"),
+                 legend_beta_donor,
+                 comp_inoc_wu2 + theme(legend.position = "none"),
+                 legend_comp2,
+                 comp_inoc_jac + theme(legend.position = "none"),
+                 comp_inoc_uu + theme(legend.position = "none"),
+                 comp_inoc_wu + theme(legend.position = "none"),
+                 legend_comp,
+                 labels  = c("C", "", "D", "E", "F", "", "", "", "", "", "", ""),
+                 ncol = 6,
+                 nrow = 2,
+                 align = "hv",
+                 rel_widths = c(1,0.5,1,1,1,0.5),
+                 rel_heights = c(1,0.95))
 
-comp_plot2
+fig_3 <- plot_grid (alpha_plot,
+                    PCoA,
+                    nrow = 2,
+                    align = "hv",
+                    rel_heights = c(1,1.5))
 
-ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_distance_microaerob.pdf", width = 8, height = 8)
+fig_3
+
+ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_3.pdf", width = 11, height = 7)
 ```
 
-**Figure distance redox condition**. A) Bray Curtis, B) Jaccard, C) unweighted UniFrac and D) weighted UniFrac distances between microbial communities in column A with electron donor amendment.<br>
+**Figure 3**. Microbial community diversity across the different columns amendments. Alpha diversity expressed as A) ASV richness (Chao1) and B) ASV diversity (Shannon). Principal coordinates analysis (PCoA) ordination plots of community composition and corresponding distances between microbial communities selected under consecutive redox conditions or by consecutive electron donor amendments based on C) weighted UniFrac distances for the microaerobic cycles without electron donor amendment column; and based on D) Jaccard; E) unweighted UniFrac; and F) weighted UniFrac distances, respectively, for the remaining columns. Distance denotes the pairwise difference in community composition (i.e. beta diversity), where 0 and 1 represent identical and entirely different community compositions, respectively.<br>
+
+### Figure S6 - Remaining Beta diversity
+
+```{r Figure S6, message=F, echo=T, eval=T, warning=F, include=T, cache=F, fig.width=11, fig.height=4.2}
+PCoA_sm <- plot_grid(plot_PCoA_Jac_microaerob + theme(legend.position = "none"),
+                   plot_PCoA_BC_microaerob + theme(legend.position = "none"),
+                   plot_PCoA_uu_microaerob + theme(legend.position = "none"),
+                   legend_beta_microaerob,
+                   plot_PCoA_BC_donor + theme(legend.position = "none"),
+                   legend_beta_donor,
+                   comp_inoc_jac2 + theme(legend.position = "none"),
+                   comp_inoc_bc2 + theme(legend.position = "none"),
+                   comp_inoc_uu2 + theme(legend.position = "none"),
+                   legend_comp2,
+                   comp_inoc_bc + theme(legend.position = "none"),
+                   legend_comp,
+                   labels  = c("A", "B", "C", "", "D", "", "", "", "", "", "", ""),
+                   ncol = 6,
+                   nrow = 2,
+                   align = "hv",
+                   rel_widths = c(1,1,1,0.5,1,0.5),
+                   rel_heights = c(1,0.95))
+PCoA_sm
+
+ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_S6.pdf", width = 11, height = 4.2)
+```
+
+**Figure S6**. Microbial community diversity across the different column amendments. Principal coordinates analysis (PCoA) ordination plots of community composition and corresponding distances between microbial communities selected under consecutive redox conditions or by consecutive electron donor amendments based on A) Jaccard; B) Bray Curtis; and C) unweighted UniFrac distances, respectively, for the microaerobic cycles without electron donor amendment column; and based on D) Bray Curtis distances for the remaining columns. Distance denotes the pairwise difference in community composition (i.e. beta diversity), where 0 and 1 represent identical and entirely different community compositions, respectively.<br>
 
 ### Relative abundance
 
@@ -1133,7 +1204,7 @@ class_count <- ps_Class %>%
   as_tibble() %>% 
   mutate(Class = factor(Class)) %>% 
   pull(Class) %>% 
-  levels() # count class n = 77
+  levels() # count class n = 80
 
 Class_abundances <- ps_Class %>% 
   as_tibble() %>% 
@@ -1163,14 +1234,14 @@ plot_Class <- inner_join(Class_abundances, Class_pool, by="Class") %>%
   mutate(Class = factor(Class), 
          Class = fct_reorder(Class, mean, .desc = T),
          day_doc = factor(day_doc),
-         redox_type = fct_relevel(day_doc, rev(c("14_H", "42_H_D",	"70_D",	"98_D_A",	"126_A",	"154_NH4",	"14_Nitrate_red",	"70_Microaerob", "126_Microaerob",	"154_Microaerob"))),
+         day_doc = fct_relevel(day_doc, rev(c("14_H", "42_H_D",	"70_D",	"98_D_A",	"126_A",	"154_NH4",	"14_Nitrate_red",	"70_Microaerob", "126_Microaerob",	"154_Microaerob"))),
          column_height = factor(column_height),
          column_height = fct_relevel(column_height, rev(c("Nitrate_red_Microaer_50",	"Nitrate_red_2.5", "Aerob_2.5", "Aerob_Microaer_2.5", "Aerob_Microaer_50")))) %>% 
-ggplot(aes(x=day_doc, y = column_height, fill = Class)) +
+ggplot(aes(x=day_doc, y = mean_rel_abund, fill = Class)) +
   geom_col() +
   scale_fill_manual(name=NULL, 
                     values = c("#B2182B", "#D6604D", "#2166AC", "#4393C3", "#4D4D4D", "#878787", "#01665E", "#35978F", "#ABDDA4", "#E6F598", "#8C510A", "#BF812D", "#C51B7D", "#DE77AE", "#4D9221", "#7FBC41",  "#762A83", "#9970AB", "#FDAE61", "#FEE090",  "#1B7837", "#5AAE61")) +
-  facet_wrap(~column_height, ncol = 5, scales = "free_x") +
+  facet_wrap(~column_height, ncol = 2, scales = "free") +
   scale_y_continuous(expand = c(0,0)) +
   labs(x="Day_DOC", y="Mean Relative Abundance (%)") +
   theme_classic() +
@@ -1192,8 +1263,6 @@ ggplot(aes(x=day_doc, y = column_height, fill = Class)) +
                                     size = 0.5)) +
   coord_flip()
 
-plot_Class
-
 class = plot_grid(plot_Class + theme(legend.position = "none"), 
                    ncol = 1, 
                    nrow = 1, 
@@ -1210,8 +1279,82 @@ ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquife
 **Figure abundance class**. Microbial community composition based on Class occurrences – X most abundant class.<br>
 
 ```{r rel abund barplot genus, message=F, echo=T, eval=T, warning=T, include=T, cache=F, fig.width=10, fig.height=4}
+# input data
+ps_Genus <- psmelt(transform_sample_counts(tax_glom(psdata_RBRA, "Genus"), fun = function(x) x/sum(x)))
 
+# relative abundance based on Genus
+Genus_count <- ps_Genus %>% 
+  as_tibble() %>% 
+  mutate(Genus = factor(Genus)) %>% 
+  pull(Genus) %>% 
+  levels() # count Genus n = 80
 
+Genus_abundances <- ps_Genus %>% 
+  as_tibble() %>% 
+  dplyr::select(sampleid, day_doc, column_height, Genus, Abundance) %>% 
+  mutate(day_doc = as.character(day_doc),
+         column_height = as.character(column_height)) %>% 
+  group_by(sampleid, day_doc, column_height, Genus) %>% 
+  summarize(rel_abund = sum(Abundance), .groups = "drop") %>% 
+  group_by(day_doc,column_height, Genus) %>% 
+  summarize(mean_rel_abund = 100* mean(rel_abund), .groups = "drop") %>% 
+  mutate(Genus = str_replace(Genus, "(.*)_unClassified", "UnClassified *\\1*"),
+         Genus = str_replace(Genus, "^(\\S*)$", "*\\1*"))
+
+Genus_pool <- Genus_abundances %>% 
+  group_by(Genus) %>% 
+  summarize(pool = max(mean_rel_abund) < 10, 
+            mean = mean(mean_rel_abund), 
+            .groups = "drop")
+
+# plot relative abundance based on Genus
+plot_Genus <- inner_join(Genus_abundances, Genus_pool, by="Genus") %>% 
+  mutate(Genus = if_else(pool, "Other", Genus)) %>% 
+  group_by(day_doc, column_height, Genus) %>%
+  summarize(mean_rel_abund = sum(mean_rel_abund), 
+            mean = min(mean),
+            .groups = "drop") %>% 
+  mutate(Genus = factor(Genus), 
+         Genus = fct_reorder(Genus, mean, .desc = T),
+         day_doc = factor(day_doc),
+         day_doc = fct_relevel(day_doc, rev(c("14_H", "42_H_D",	"70_D",	"98_D_A",	"126_A",	"154_NH4",	"14_Nitrate_red",	"70_Microaerob", "126_Microaerob",	"154_Microaerob"))),
+         column_height = factor(column_height),
+         column_height = fct_relevel(column_height, rev(c("Nitrate_red_Microaer_50",	"Nitrate_red_2.5", "Aerob_2.5", "Aerob_Microaer_2.5", "Aerob_Microaer_50")))) %>% 
+ggplot(aes(x=day_doc, y = mean_rel_abund, fill = Genus)) +
+  geom_col() +
+  scale_fill_manual(name=NULL, 
+                    values = c("#B2182B", "#D6604D", "#2166AC", "#4393C3", "#4D4D4D", "#878787", "#01665E", "#35978F", "#ABDDA4", "#E6F598", "#8C510A", "#BF812D", "#C51B7D", "#DE77AE", "#4D9221", "#7FBC41",  "#762A83", "#9970AB", "#FDAE61", "#FEE090",  "#1B7837", "#5AAE61")) +
+  facet_wrap(~column_height, ncol = 2, scales = "free") +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(x="Day_DOC", y="Mean Relative Abundance (%)") +
+  theme_classic() +
+  theme(axis.text = element_text(size = 7, colour = "black"),
+        axis.ticks.x = element_line(size = 0.35),
+        axis.ticks.y = element_line(size = 0.35),
+        axis.title = element_text(size = 9),
+        axis.title.x = element_text(margin = margin(t = 7)),
+        axis.title.y = element_text(margin = margin(r = 7)),
+        axis.line = element_blank(),
+        legend.text = element_markdown(size=7),
+        legend.title = element_text(size = 8),
+        legend.key.size = unit(10, "pt"),
+        strip.text = element_text(size = 8),
+        strip.background = element_blank(),
+        panel.spacing = unit(10, "pt"),
+        panel.border = element_rect(colour = "black", 
+                                    fill = NA, 
+                                    size = 0.5)) +
+  coord_flip()
+
+Genus = plot_grid(plot_Genus + theme(legend.position = "none"), 
+                   ncol = 1, 
+                   nrow = 1, 
+                   align = "hv")
+
+legend_Genus <- get_legend(plot_Genus + guides(fill = guide_legend(ncol = 8)) +
+    theme(legend.position = "right"))
+
+plot_grid(Genus, legend_Genus, nrow=2, rel_heights = c(5, 1))
 
 ggsave("C:/Users/Rita/Documents/R/amendment_micropollutant_biodegradation_aquifer/figures/Figure4_abundance_genus.pdf", width = 8, height = 4)
 ```
